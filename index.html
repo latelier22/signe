@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signature client</title>
+
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f6f6f6;
+        margin: 2em;
+      }
+
+      .container {
+        max-width: 480px;
+        margin: auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+      }
+
+      h2 {
+        text-align: center;
+        color: #1976d2;
+      }
+
+      #signature-pad {
+        border: 2px solid #1976d2;
+        border-radius: 8px;
+        display: block;
+        margin: 20px auto;
+        background-color: #fff;
+      }
+
+      input[type="number"] {
+        width: 80px;
+        padding: 5px;
+        margin-right: 10px;
+      }
+
+      button {
+        margin: 5px;
+        padding: 10px 20px;
+        border: none;
+        background-color: #1976d2;
+        color: white;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background-color: #0d47a1;
+      }
+
+      #status {
+        margin-top: 20px;
+        text-align: center;
+        font-weight: bold;
+      }
+
+      #client-info {
+        margin-top: 15px;
+        padding: 10px;
+        background: #eef4ff;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="container">
+      <h2>Bon de cession</h2>
+
+      <!-- Saisie de l'ID -->
+      <div style="text-align:center">
+        <input type="number" id="client-id" placeholder="ID" />
+        <button onclick="fetchClient()">Charger</button>
+      </div>
+
+      <div id="client-info" style="display:none;">
+        <p>
+          Je soussigné <b id="client-nom"></b>, certifie vendre
+          l’appareil <b id="client-appareil"></b>.
+        </p>
+
+        <canvas id="signature-pad" width="300" height="150"></canvas><br />
+        <div style="text-align: center;">
+          <button onclick="clearPad()">Effacer</button>
+          <button onclick="submitPad()">Signer et valider</button>
+        </div>
+      </div>
+
+      <p id="status"></p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+    <script>
+      const SCRIPT_URL = "https://signe.multimedia-services.fr/proxy.php";
+      let pad = null;
+      let currentId = null;
+      const status = document.getElementById("status");
+
+      function clearPad() {
+        pad && pad.clear();
+      }
+
+async function fetchClient() {
+  const id = document.getElementById("client-id").value.trim();
+  if (!id) {
+    alert("Veuillez saisir un ID !");
+    return;
+  }
+
+  status.textContent = "Chargement du client...";
+  status.style.color = "black";
+
+  try {
+    const response = await fetch(`${SCRIPT_URL}?id=${id}`);
+    const result = await response.json(); // ✅ le vrai JSON complet
+
+    if (result.status !== "success" || !result.data) {
+      throw new Error(result.message || "Erreur inconnue côté serveur");
+    }
+
+    const client = result.data; // ✅ le vrai objet client
+
+    document.getElementById("client-nom").textContent =
+      client.prenom + " " + client.nom;
+    document.getElementById("client-appareil").textContent =
+      client.appareil + " " + client.marque + " " + client.modele;
+
+    document.getElementById("client-info").style.display = "block";
+    pad = new SignaturePad(document.getElementById("signature-pad"));
+    currentId = id;
+
+    status.textContent = "Client chargé ✅";
+    status.style.color = "green";
+  } catch (err) {
+    console.error(err);
+    status.textContent = "Erreur : " + err.message;
+    status.style.color = "red";
+  }
+}
+
+
+      // ➕ tu peux adapter cette fonction selon le format réel renvoyé par ton script Google
+      function parseClientData(htmlText) {
+        // exemple de mock pour test
+        if (htmlText.includes("BON DE CESSION")) {
+          return {
+            nom: "Dupont",
+            prenom: "Jean",
+            appareil: "iPhone",
+            marque: "Apple",
+            modele: "12 Pro",
+          };
+        }
+        return {
+          nom: "Test",
+          prenom: "Client",
+          appareil: "Appareil",
+          marque: "Marque",
+          modele: "Modele",
+        };
+      }
+
+      async function submitPad() {
+        if (!pad || pad.isEmpty()) {
+          alert("Veuillez signer avant de valider !");
+          return;
+        }
+
+        const data = {
+          id: currentId,
+          signature: pad.toDataURL(),
+        };
+
+        status.textContent = "Envoi en cours...";
+        status.style.color = "black";
+
+        try {
+          const response = await fetch(SCRIPT_URL, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(data),
+});
+const result = await response.json(); // 👈 JSON direct maintenant
+if (result.status === "success") {
+  status.style.color = "green";
+  status.innerHTML = `✅ ${result.message}<br><a href="${result.url}" target="_blank">Voir le PDF</a>`;
+} else {
+  status.style.color = "red";
+  status.textContent = "Erreur : " + result.message;
+}
+
+        } catch (err) {
+          console.error("Erreur :", err);
+          status.style.color = "red";
+          status.textContent = "Erreur d'envoi : " + err.message;
+        }
+      }
+    </script>
+  </body>
+</html>
