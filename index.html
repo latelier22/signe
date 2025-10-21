@@ -3,127 +3,164 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Clients en attente</title>
-
+  <title>Signature client</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       background-color: #f6f8fa;
       text-align: center;
-      margin-top: 60px;
+      margin-top: 40px;
     }
-
     h1 {
       color: #1976d2;
-      margin-bottom: 20px;
     }
-
-    #zone {
+    #bloc {
       display: inline-block;
-      background: #e3f2fd;
+      background: #fff;
       border: 2px solid #1976d2;
-      padding: 25px 40px;
       border-radius: 12px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-      transition: all 0.3s ease;
+      padding: 25px 30px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 90%;
+      max-width: 480px;
     }
-
-    #nom {
-      font-size: 1.6em;
+    #nom { font-size: 1.5em; font-weight: bold; margin: 10px 0; }
+    #appareil, #prix, #date { margin: 6px 0; color: #333; }
+    #signature-pad {
+      border: 2px solid #1976d2;
+      border-radius: 8px;
+      display: block;
+      margin: 20px auto;
+      background-color: #fafafa;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      border: none;
+      background-color: #1976d2;
+      color: white;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:hover { background-color: #0d47a1; }
+    #status {
+      margin-top: 20px;
       font-weight: bold;
-      color: #0d47a1;
-      margin: 10px 0;
     }
-
-    #appareil {
-      font-size: 1.2em;
-      color: #333;
-      margin: 8px 0;
-    }
-
-    #prix {
-      font-size: 1.1em;
-      color: #444;
-      margin: 8px 0;
-    }
-
-    #date {
-      color: #555;
-      margin-top: 8px;
-    }
-
-    #no-client {
-      font-size: 1.2em;
-      color: #999;
-      padding: 40px;
-    }
-
-    audio { display: none; }
   </style>
 </head>
-
 <body>
-  <h1>👋 En attente de client</h1>
+  <h1>🖋️ Bon de cession</h1>
 
-  <div id="zone">
+  <div id="bloc">
     <div id="no-client">Aucun client pour le moment...</div>
-    <div id="client" style="display:none;">
-      <div id="nom"></div>
-      <div id="appareil"></div>
-      <div id="prix"></div>
-      <div id="date"></div>
+
+    <div id="client-info" style="display:none;">
+      <p>Je soussigné <b id="nom"></b>, certifie vendre :</p>
+      <p id="appareil"></p>
+      <p id="prix"></p>
+      <p id="date"></p>
+
+      <canvas id="signature-pad" width="300" height="150"></canvas><br />
+      <div>
+        <button onclick="clearPad()">Effacer</button>
+        <button onclick="submitPad()">Signer et valider</button>
+      </div>
+
+      <p id="status"></p>
     </div>
   </div>
 
   <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
 
+  <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
   <script>
+    const SCRIPT_URL = "proxy.php";
+    let currentClient = null;
+    let pad = null;
     let lastId = null;
 
     async function checkClient() {
       try {
-        const res = await fetch("proxy.php?action=client&_=" + Date.now());
+        const res = await fetch(`${SCRIPT_URL}?action=client&_=${Date.now()}`);
         const json = await res.json();
 
         if (json.status === "ok" && json.data) {
           const c = json.data;
 
-          // Si c’est un nouveau client
+          // 🆕 Nouveau client détecté
           if (c.id !== lastId) {
             lastId = c.id;
-            console.log("👤 Nouveau client :", c);
-
-            // Affichage client
+            currentClient = c;
             document.getElementById("no-client").style.display = "none";
-            document.getElementById("client").style.display = "block";
-            document.getElementById("nom").textContent = c.prenom + " " + c.nom;
+            document.getElementById("client-info").style.display = "block";
+            document.getElementById("nom").textContent = `${c.prenom} ${c.nom}`;
             document.getElementById("appareil").textContent = `${c.appareil} ${c.marque} ${c.modele}`;
             document.getElementById("prix").textContent = `Prix : ${c.prix} €`;
             document.getElementById("date").textContent = `Date : ${c.dateCession}`;
 
-            // 🔔 Son & effet visuel
             document.getElementById("ding").play();
-            flashZone();
+            pad = new SignaturePad(document.getElementById("signature-pad"));
+            document.getElementById("status").textContent = "";
           }
         } else if (json.status === "empty") {
-          document.getElementById("client").style.display = "none";
           document.getElementById("no-client").style.display = "block";
-          document.getElementById("no-client").textContent = "Aucun client pour le moment...";
+          document.getElementById("client-info").style.display = "none";
         }
       } catch (err) {
         console.error("Erreur checkClient:", err);
       }
     }
 
-    function flashZone() {
-      const zone = document.getElementById("zone");
-      zone.style.background = "#bbdefb";
-      setTimeout(() => zone.style.background = "#e3f2fd", 1000);
+    function clearPad() {
+      if (pad) pad.clear();
     }
 
-    // Vérifie toutes les 3 secondes
+    async function submitPad() {
+      if (!pad || pad.isEmpty()) {
+        alert("Veuillez signer avant de valider !");
+        return;
+      }
+      if (!currentClient) {
+        alert("Aucun client chargé !");
+        return;
+      }
+
+      const data = {
+        id: currentClient.id,
+        signature: pad.toDataURL(),
+      };
+
+      document.getElementById("status").textContent = "Envoi en cours...";
+      document.getElementById("status").style.color = "black";
+
+      try {
+        const response = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+        const result = await response.json();
+
+        if (result.status === "success") {
+          document.getElementById("status").style.color = "green";
+          document.getElementById("status").innerHTML = 
+            `✅ ${result.message}<br><a href="${result.url}" target="_blank">Voir le PDF</a>`;
+          pad.clear();
+          currentClient = null;
+        } else {
+          document.getElementById("status").style.color = "red";
+          document.getElementById("status").textContent = "Erreur : " + result.message;
+        }
+      } catch (err) {
+        document.getElementById("status").style.color = "red";
+        document.getElementById("status").textContent = "Erreur d'envoi : " + err.message;
+      }
+    }
+
+    // 🔁 Vérifie toutes les 3 secondes s’il y a un client
     setInterval(checkClient, 3000);
-    checkClient(); // première vérif immédiate
+    checkClient();
   </script>
 </body>
 </html>
