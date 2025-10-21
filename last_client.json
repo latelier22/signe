@@ -1,0 +1,10 @@
+{
+    "id": 2,
+    "nom": "Martin",
+    "prenom": "Claire",
+    "appareil": "Ordinateur portable",
+    "marque": "Apple",
+    "modele": "MacBook Air",
+    "prix": 600,
+    "dateCession": "2025-10-19T22:00:00.000Z"
+}

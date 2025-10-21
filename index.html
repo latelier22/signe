@@ -1,206 +1,129 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Signature client</title>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clients en attente</title>
 
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background-color: #f6f6f6;
-        margin: 2em;
-      }
-
-      .container {
-        max-width: 480px;
-        margin: auto;
-        background: #fff;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
-      }
-
-      h2 {
-        text-align: center;
-        color: #1976d2;
-      }
-
-      #signature-pad {
-        border: 2px solid #1976d2;
-        border-radius: 8px;
-        display: block;
-        margin: 20px auto;
-        background-color: #fff;
-      }
-
-      input[type="number"] {
-        width: 80px;
-        padding: 5px;
-        margin-right: 10px;
-      }
-
-      button {
-        margin: 5px;
-        padding: 10px 20px;
-        border: none;
-        background-color: #1976d2;
-        color: white;
-        border-radius: 5px;
-        cursor: pointer;
-      }
-
-      button:hover {
-        background-color: #0d47a1;
-      }
-
-      #status {
-        margin-top: 20px;
-        text-align: center;
-        font-weight: bold;
-      }
-
-      #client-info {
-        margin-top: 15px;
-        padding: 10px;
-        background: #eef4ff;
-        border-radius: 6px;
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="container">
-      <h2>Bon de cession</h2>
-
-      <!-- Saisie de l'ID -->
-      <div style="text-align:center">
-        <input type="number" id="client-id" placeholder="ID" />
-        <button onclick="fetchClient()">Charger</button>
-      </div>
-
-      <div id="client-info" style="display:none;">
-        <p>
-          Je soussigné <b id="client-nom"></b>, certifie vendre
-          l’appareil <b id="client-appareil"></b>.
-        </p>
-
-        <canvas id="signature-pad" width="300" height="150"></canvas><br />
-        <div style="text-align: center;">
-          <button onclick="clearPad()">Effacer</button>
-          <button onclick="submitPad()">Signer et valider</button>
-        </div>
-      </div>
-
-      <p id="status"></p>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
-    <script>
-      const SCRIPT_URL = "https://signe.multimedia-services.fr/proxy.php";
-      let pad = null;
-      let currentId = null;
-      const status = document.getElementById("status");
-
-      function clearPad() {
-        pad && pad.clear();
-      }
-
-async function fetchClient() {
-  const id = document.getElementById("client-id").value.trim();
-  if (!id) {
-    alert("Veuillez saisir un ID !");
-    return;
-  }
-
-  status.textContent = "Chargement du client...";
-  status.style.color = "black";
-
-  try {
-    const response = await fetch(`${SCRIPT_URL}?id=${id}`);
-    const result = await response.json(); // ✅ le vrai JSON complet
-
-    if (result.status !== "success" || !result.data) {
-      throw new Error(result.message || "Erreur inconnue côté serveur");
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f6f8fa;
+      text-align: center;
+      margin-top: 60px;
     }
 
-    const client = result.data; // ✅ le vrai objet client
+    h1 {
+      color: #1976d2;
+      margin-bottom: 20px;
+    }
 
-    document.getElementById("client-nom").textContent =
-      client.prenom + " " + client.nom;
-    document.getElementById("client-appareil").textContent =
-      client.appareil + " " + client.marque + " " + client.modele;
+    #zone {
+      display: inline-block;
+      background: #e3f2fd;
+      border: 2px solid #1976d2;
+      padding: 25px 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+      transition: all 0.3s ease;
+    }
 
-    document.getElementById("client-info").style.display = "block";
-    pad = new SignaturePad(document.getElementById("signature-pad"));
-    currentId = id;
+    #nom {
+      font-size: 1.6em;
+      font-weight: bold;
+      color: #0d47a1;
+      margin: 10px 0;
+    }
 
-    status.textContent = "Client chargé ✅";
-    status.style.color = "green";
-  } catch (err) {
-    console.error(err);
-    status.textContent = "Erreur : " + err.message;
-    status.style.color = "red";
-  }
-}
+    #appareil {
+      font-size: 1.2em;
+      color: #333;
+      margin: 8px 0;
+    }
 
+    #prix {
+      font-size: 1.1em;
+      color: #444;
+      margin: 8px 0;
+    }
 
-      // ➕ tu peux adapter cette fonction selon le format réel renvoyé par ton script Google
-      function parseClientData(htmlText) {
-        // exemple de mock pour test
-        if (htmlText.includes("BON DE CESSION")) {
-          return {
-            nom: "Dupont",
-            prenom: "Jean",
-            appareil: "iPhone",
-            marque: "Apple",
-            modele: "12 Pro",
-          };
+    #date {
+      color: #555;
+      margin-top: 8px;
+    }
+
+    #no-client {
+      font-size: 1.2em;
+      color: #999;
+      padding: 40px;
+    }
+
+    audio { display: none; }
+  </style>
+</head>
+
+<body>
+  <h1>👋 En attente de client</h1>
+
+  <div id="zone">
+    <div id="no-client">Aucun client pour le moment...</div>
+    <div id="client" style="display:none;">
+      <div id="nom"></div>
+      <div id="appareil"></div>
+      <div id="prix"></div>
+      <div id="date"></div>
+    </div>
+  </div>
+
+  <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+
+  <script>
+    let lastId = null;
+
+    async function checkClient() {
+      try {
+        const res = await fetch("proxy.php?action=client&_=" + Date.now());
+        const json = await res.json();
+
+        if (json.status === "ok" && json.data) {
+          const c = json.data;
+
+          // Si c’est un nouveau client
+          if (c.id !== lastId) {
+            lastId = c.id;
+            console.log("👤 Nouveau client :", c);
+
+            // Affichage client
+            document.getElementById("no-client").style.display = "none";
+            document.getElementById("client").style.display = "block";
+            document.getElementById("nom").textContent = c.prenom + " " + c.nom;
+            document.getElementById("appareil").textContent = `${c.appareil} ${c.marque} ${c.modele}`;
+            document.getElementById("prix").textContent = `Prix : ${c.prix} €`;
+            document.getElementById("date").textContent = `Date : ${c.dateCession}`;
+
+            // 🔔 Son & effet visuel
+            document.getElementById("ding").play();
+            flashZone();
+          }
+        } else if (json.status === "empty") {
+          document.getElementById("client").style.display = "none";
+          document.getElementById("no-client").style.display = "block";
+          document.getElementById("no-client").textContent = "Aucun client pour le moment...";
         }
-        return {
-          nom: "Test",
-          prenom: "Client",
-          appareil: "Appareil",
-          marque: "Marque",
-          modele: "Modele",
-        };
+      } catch (err) {
+        console.error("Erreur checkClient:", err);
       }
+    }
 
-      async function submitPad() {
-        if (!pad || pad.isEmpty()) {
-          alert("Veuillez signer avant de valider !");
-          return;
-        }
+    function flashZone() {
+      const zone = document.getElementById("zone");
+      zone.style.background = "#bbdefb";
+      setTimeout(() => zone.style.background = "#e3f2fd", 1000);
+    }
 
-        const data = {
-          id: currentId,
-          signature: pad.toDataURL(),
-        };
-
-        status.textContent = "Envoi en cours...";
-        status.style.color = "black";
-
-        try {
-          const response = await fetch(SCRIPT_URL, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify(data),
-});
-const result = await response.json(); // 👈 JSON direct maintenant
-if (result.status === "success") {
-  status.style.color = "green";
-  status.innerHTML = `✅ ${result.message}<br><a href="${result.url}" target="_blank">Voir le PDF</a>`;
-} else {
-  status.style.color = "red";
-  status.textContent = "Erreur : " + result.message;
-}
-
-        } catch (err) {
-          console.error("Erreur :", err);
-          status.style.color = "red";
-          status.textContent = "Erreur d'envoi : " + err.message;
-        }
-      }
-    </script>
-  </body>
+    // Vérifie toutes les 3 secondes
+    setInterval(checkClient, 3000);
+    checkClient(); // première vérif immédiate
+  </script>
+</body>
 </html>
