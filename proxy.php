@@ -14,7 +14,7 @@ $googleUrl = "https://script.google.com/macros/s/AKfycbx2ea_6RtEOIwB1htGeyHI5ls_
 $localFile = __DIR__ . "/last_client.json";
 
 // --- ROUTAGE SIMPLE ---
-$action = $_GET['action'] ?? ''; // ex: ?action=client pour le suivi
+$action = $_GET['action'] ?? '';
 
 // === MODE "CLIENT" : gestion de l’attente ===
 if ($action === 'client') {
@@ -59,6 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $input = file_get_contents("php://input");
+
+  // 🔁 Redirection vers Google Apps Script
   $ch = curl_init($googleUrl);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLOPT_POST, true);
@@ -67,6 +69,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
   $response = curl_exec($ch);
   curl_close($ch);
+
+  // ✅ Vérifie si le PDF a bien été créé
+  $json = json_decode($response, true);
+  if ($json && isset($json['status']) && $json['status'] === 'success') {
+    // Efface le fichier last_client.json pour revenir en attente
+    if (file_exists($localFile)) {
+      unlink($localFile);
+    }
+  }
+
   echo $response;
   exit;
 }
