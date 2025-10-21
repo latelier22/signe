@@ -4,98 +4,49 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bon de cession - Signature</title>
-
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f6f8fa;
-      text-align: center;
-      margin-top: 40px;
-    }
+    body { font-family: Arial, sans-serif; background-color: #f6f8fa; text-align: center; margin-top: 40px; }
     h1 { color: #1976d2; }
-    form {
-      display: inline-block;
-      background: #fff;
-      border: 2px solid #1976d2;
-      border-radius: 12px;
-      padding: 25px 30px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-      width: 90%;
-      max-width: 520px;
-      text-align: left;
-    }
+    form { display: inline-block; background: #fff; border: 2px solid #1976d2; border-radius: 12px; padding: 25px 30px;
+           box-shadow: 0 0 10px rgba(0,0,0,0.1); width: 90%; max-width: 520px; text-align: left; }
     label { display: block; margin-top: 10px; color: #333; }
-    input {
-      width: 100%;
-      padding: 6px;
-      border: 1px solid #ccc;
-      border-radius: 5px;
-      margin-top: 4px;
-    }
-    #signature-pad {
-      border: 2px solid #1976d2;
-      border-radius: 8px;
-      display: block;
-      margin: 20px auto;
-      background-color: #fafafa;
-    }
-    button {
-      margin: 5px;
-      padding: 10px 20px;
-      border: none;
-      background-color: #1976d2;
-      color: white;
-      border-radius: 5px;
-      cursor: pointer;
-    }
+    input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 5px; margin-top: 4px; }
+    #signature-pad { border: 2px solid #1976d2; border-radius: 8px; display: block; margin: 20px auto; background-color: #fafafa; }
+    button { margin: 5px; padding: 10px 20px; border: none; background-color: #1976d2; color: white; border-radius: 5px; cursor: pointer; }
     button:hover { background-color: #0d47a1; }
-    #status {
-      margin-top: 20px;
-      font-weight: bold;
-      text-align: center;
-    }
+    #status { margin-top: 20px; font-weight: bold; text-align: center; min-height: 1.2em; }
   </style>
 </head>
 <body>
   <h1>🖋️ Bon de cession</h1>
 
-  <form id="form">
+  <form id="form" onsubmit="return false">
     <div id="no-client" style="text-align:center;">Aucun client pour le moment...</div>
 
     <div id="client-info" style="display:none;">
       <label>Nom :</label>
       <input type="text" id="nom" name="nom" />
-
       <label>Prénom :</label>
       <input type="text" id="prenom" name="prenom" />
-
       <label>Adresse :</label>
       <input type="text" id="adresse" name="adresse" />
-
       <label>Code postal :</label>
       <input type="text" id="codePostal" name="codePostal" />
-
-      <label>Ville :</label>
-      <input type="text" id="ville" name="ville" />
-
       <label>Téléphone :</label>
       <input type="text" id="telephone" name="telephone" />
-
       <label>Email :</label>
       <input type="email" id="email" name="email" />
 
-      <label>Appareil :</label>
-      <input type="text" id="appareil" name="appareil" readonly />
+      <hr />
 
-      <label>Marque :</label>
-      <input type="text" id="marque" name="marque" readonly />
-
-      <label>Modèle :</label>
-      <input type="text" id="modele" name="modele" readonly />
-
-      <label>Prix (€) :</label>
-      <input type="text" id="prix" name="prix" readonly />
-
+      <label>Appareil (IMEI/Série) :</label>
+      <input type="text" id="imei" name="imei" readonly />
+      <label>Numéro CI :</label>
+      <input type="text" id="numeroCI" name="numeroCI" readonly />
+      <label>Marque / Modèle :</label>
+      <input type="text" id="marqueModele" name="marqueModele" readonly />
+      <label>Prix d'achat (€) :</label>
+      <input type="text" id="prixAchat" name="prixAchat" readonly />
       <label>Date de cession :</label>
       <input type="text" id="dateCession" name="dateCession" readonly />
 
@@ -111,18 +62,19 @@
   </form>
 
   <audio id="ding" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
-
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
   <script>
     const SCRIPT_URL = "proxy.php";
-    let pad = null;
-    let currentClient = null;
-    let lastId = null;
+    let pad = null, currentClient = null, lastId = null;
 
     async function checkClient() {
       try {
         const res = await fetch(`${SCRIPT_URL}?action=client&_=${Date.now()}`);
-        const json = await res.json();
+        const text = await res.text();
+        let json;
+        try { json = JSON.parse(text); } catch (e) {
+          console.error("Réponse non JSON (GET):", text); return;
+        }
 
         if (json.status === "ok" && json.data) {
           const c = json.data;
@@ -133,68 +85,79 @@
             document.getElementById("client-info").style.display = "block";
             document.getElementById("ding").play();
 
-            // Préremplir les champs
-            for (const [key, value] of Object.entries(c)) {
-              if (document.getElementById(key))
-                document.getElementById(key).value = value || "";
-            }
+            // préremplit
+            const mapping = {
+              nom: c.nom, prenom: c.prenom, adresse: c.adresse,
+              codePostal: c.codePostal, telephone: c.telephone, email: c.email,
+              imei: c.imei, numeroCI: c.numeroCI, marqueModele: c.marqueModele,
+              prixAchat: c.prixAchat, dateCession: c.dateCession
+            };
+            Object.entries(mapping).forEach(([k,v]) => {
+              const el = document.getElementById(k); if (el) el.value = v || "";
+            });
 
-            pad = new SignaturePad(document.getElementById("signature-pad"));
+            if (!pad) pad = new SignaturePad(document.getElementById("signature-pad"));
             document.getElementById("status").textContent = "";
           }
         } else if (json.status === "empty") {
           document.getElementById("no-client").style.display = "block";
           document.getElementById("client-info").style.display = "none";
+          currentClient = null;
         }
       } catch (err) {
         console.error("Erreur checkClient:", err);
       }
     }
 
-    function clearPad() {
+    function clearPad() { if (pad) pad.clear(); }
+
+    function resetFormToWaiting() {
+      document.getElementById("form").reset();
       if (pad) pad.clear();
+      currentClient = null;
+      lastId = null;
+      document.getElementById("client-info").style.display = "none";
+      document.getElementById("no-client").style.display = "block";
     }
 
     async function submitPad() {
-      if (!pad || pad.isEmpty()) {
-        alert("Veuillez signer avant de valider !");
-        return;
-      }
-      if (!currentClient) {
-        alert("Aucun client chargé !");
-        return;
-      }
+      if (!pad || pad.isEmpty()) { alert("Veuillez signer avant de valider !"); return; }
+      if (!currentClient) { alert("Aucun client chargé !"); return; }
 
-      // récupère toutes les valeurs du formulaire
       const formData = {};
       new FormData(document.getElementById("form")).forEach((v, k) => formData[k] = v);
       formData.id = currentClient.id;
       formData.signature = pad.toDataURL();
 
-      document.getElementById("status").textContent = "Envoi en cours...";
-      document.getElementById("status").style.color = "black";
+      const status = document.getElementById("status");
+      status.textContent = "Envoi en cours..."; status.style.color = "black";
 
       try {
-        const response = await fetch(SCRIPT_URL, {
+        const res = await fetch(SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData)
         });
-        const result = await response.json();
+        const text = await res.text();
+        let result;
+        try { result = JSON.parse(text); } catch (e) {
+          status.style.color = "red";
+          status.textContent = "Erreur serveur (non-JSON). Voir console.";
+          console.error("Réponse non JSON (POST):", text);
+          return;
+        }
 
         if (result.status === "success") {
-          document.getElementById("status").style.color = "green";
-          document.getElementById("status").innerHTML =
-            `✅ ${result.message}<br><a href="${result.url}" target="_blank">Voir le PDF</a>`;
-          pad.clear();
-          currentClient = null;
+          status.style.color = "green";
+          status.innerHTML = `✅ ${result.message}<br><a href="${result.url}" target="_blank" rel="noopener">Voir le PDF</a>`;
+          resetFormToWaiting(); // revient en attente immédiatement
         } else {
-          document.getElementById("status").style.color = "red";
-          document.getElementById("status").textContent = "Erreur : " + result.message;
+          status.style.color = "red";
+          status.textContent = "Erreur : " + (result.message || "inconnue");
         }
       } catch (err) {
-        document.getElementById("status").style.color = "red";
-        document.getElementById("status").textContent = "Erreur d'envoi : " + err.message;
+        status.style.color = "red";
+        status.textContent = "Erreur d'envoi : " + err.message;
       }
     }
 
