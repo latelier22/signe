@@ -21,8 +21,8 @@ if ($action === 'client') {
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 🟢 Reçoit une notification de Google Sheet
     $data = json_decode(file_get_contents("php://input"), true);
-    if (!$data) {
-      echo json_encode(["status" => "error", "message" => "JSON invalide"]);
+    if (!$data || empty($data['id'])) {
+      echo json_encode(["status" => "error", "message" => "JSON invalide ou incomplet"]);
       exit;
     }
 
@@ -36,13 +36,29 @@ if ($action === 'client') {
     // 🔵 Lecture du dernier client
     if (!file_exists($localFile)) {
       echo json_encode(["status" => "empty", "message" => "Aucun client pour le moment"]);
-    } else {
-      $data = json_decode(file_get_contents($localFile), true);
-      echo json_encode(["status" => "ok", "data" => $data]);
+      exit;
     }
+
+    $content = trim(file_get_contents($localFile));
+    if ($content === '' || $content === '{}' || $content === '[]') {
+      // fichier vide ou corrompu → en attente
+      echo json_encode(["status" => "empty", "message" => "Aucun client pour le moment"]);
+      exit;
+    }
+
+    $data = json_decode($content, true);
+    if (!$data || empty($data['id'])) {
+      // pas de client valide
+      echo json_encode(["status" => "empty", "message" => "Aucun client pour le moment"]);
+      exit;
+    }
+
+    // ✅ Client valide
+    echo json_encode(["status" => "ok", "data" => $data]);
     exit;
   }
 }
+
 
 // === MODE PAR DÉFAUT : proxy vers Google Apps Script ===
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
