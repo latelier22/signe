@@ -7,54 +7,87 @@
   <style>
     body { font-family: Arial, sans-serif; background-color: #f6f8fa; text-align: center; margin-top: 40px; }
     h1 { color: #1976d2; }
-    form { display: inline-block; background: #fff; border: 2px solid #1976d2; border-radius: 12px; padding: 25px 30px;
-           box-shadow: 0 0 10px rgba(0,0,0,0.1); width: 90%; max-width: 520px; text-align: left; }
+    form { display: inline-block; background: #fff; border: 2px solid #1976d2; border-radius: 12px; padding: 25px 30px; box-shadow: 0 0 10px rgba(0,0,0,0.1); width: 90%; max-width: 560px; text-align: left; }
     label { display: block; margin-top: 10px; color: #333; }
     input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 5px; margin-top: 4px; }
     #signature-pad { border: 2px solid #1976d2; border-radius: 8px; display: block; margin: 20px auto; background-color: #fafafa; }
     button { margin: 5px; padding: 10px 20px; border: none; background-color: #1976d2; color: white; border-radius: 5px; cursor: pointer; }
     button:hover { background-color: #0d47a1; }
-    #status { margin-top: 20px; font-weight: bold; text-align: center; min-height: 1.2em; }
+    #status { margin-top: 20px; font-weight: bold; text-align: center; }
+    .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   </style>
 </head>
 <body>
   <h1>🖋️ Bon de cession</h1>
 
-  <form id="form" onsubmit="return false">
+  <form id="form">
     <div id="no-client" style="text-align:center;">Aucun client pour le moment...</div>
 
     <div id="client-info" style="display:none;">
-      <label>Nom :</label>
-      <input type="text" id="nom" name="nom" />
-      <label>Prénom :</label>
-      <input type="text" id="prenom" name="prenom" />
+      <div class="row">
+        <div>
+          <label>Nom :</label>
+          <input type="text" id="nom" name="nom" />
+        </div>
+        <div>
+          <label>Prénom :</label>
+          <input type="text" id="prenom" name="prenom" />
+        </div>
+      </div>
+
       <label>Adresse :</label>
       <input type="text" id="adresse" name="adresse" />
-      <label>Code postal :</label>
-      <input type="text" id="codePostal" name="codePostal" />
-      <label>Téléphone :</label>
-      <input type="text" id="telephone" name="telephone" />
+
+      <div class="row">
+        <div>
+          <label>Code postal :</label>
+          <input type="text" id="codePostal" name="codePostal" />
+        </div>
+        <div>
+          <label>Téléphone :</label>
+          <input type="text" id="telephone" name="telephone" />
+        </div>
+      </div>
+
       <label>Email :</label>
       <input type="email" id="email" name="email" />
 
       <hr />
 
-      <label>Appareil (IMEI/Série) :</label>
-      <input type="text" id="imei" name="imei" readonly />
-      <label>Numéro CI :</label>
-      <input type="text" id="numeroCI" name="numeroCI" readonly />
-      <label>Marque / Modèle :</label>
-      <input type="text" id="marqueModele" name="marqueModele" readonly />
-      <label>Prix d'achat (€) :</label>
-      <input type="text" id="prixAchat" name="prixAchat" readonly />
-      <label>Date de cession :</label>
-      <input type="text" id="dateCession" name="dateCession" readonly />
+      <label>IMEI / Série :</label>
+      <input type="text" id="imei" name="imei" />
 
-      <p style="text-align:center; margin-top:15px;">Signature :</p>
-      <canvas id="signature-pad" width="300" height="150"></canvas>
+      <div class="row">
+        <div>
+          <label>Numéro CI :</label>
+          <input type="text" id="numeroCI" name="numeroCI" />
+        </div>
+        <div>
+          <label>Prix d'achat (€) :</label>
+          <input type="text" id="prixAchat" name="prixAchat" />
+        </div>
+      </div>
+
+      <label>Marque / Modèle :</label>
+      <input type="text" id="marqueModele" name="marqueModele" />
+
+      <div class="row">
+        <div>
+          <label>Attestation :</label>
+          <input type="text" id="attestation" name="attestation" />
+        </div>
+        <div>
+          <label>Date de cession :</label>
+          <input type="text" id="dateCession" name="dateCession" />
+        </div>
+      </div>
+
+      <p style="text-align:center; margin-top:15px;">Signature (pour PDF) :</p>
+      <canvas id="signature-pad" width="320" height="160"></canvas>
       <div style="text-align:center;">
-        <button type="button" onclick="clearPad()">Effacer</button>
-        <button type="button" onclick="submitPad()">Signer et valider</button>
+        <button type="button" onclick="clearPad()">Effacer la signature</button>
+        <button type="button" onclick="saveOnly()">💾 Enregistrer (sans PDF)</button>
+        <button type="button" onclick="submitPad()">🖊️ Signer et valider (PDF)</button>
       </div>
     </div>
 
@@ -65,104 +98,153 @@
   <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
   <script>
     const SCRIPT_URL = "proxy.php";
-    let pad = null, currentClient = null, lastId = null;
+    let pad = null;
+    let currentId = null;
 
+    // --- helpers
+    function $(id) { return document.getElementById(id); }
+    function fillForm(data) {
+      for (const [k,v] of Object.entries(data)) {
+        if ($(k)) $(k).value = v ?? '';
+      }
+    }
+
+    async function loadById(id) {
+      $('status').textContent = 'Chargement...';
+      $('status').style.color = 'black';
+      const r = await fetch(`${SCRIPT_URL}?id=${encodeURIComponent(id)}`);
+      const j = await r.json();
+      if (j.status === 'success') {
+        currentId = id;
+        $('no-client').style.display = 'none';
+        $('client-info').style.display = 'block';
+        fillForm(j.data);
+        if (!pad) pad = new SignaturePad($('signature-pad'));
+        $('status').textContent = '';
+      } else {
+        $('status').style.color = 'red';
+        $('status').textContent = j.message || 'Erreur de chargement';
+      }
+    }
+
+    // --- mode "en attente" (si pas d'id en query) : on garde ton polling existant
     async function checkClient() {
       try {
         const res = await fetch(`${SCRIPT_URL}?action=client&_=${Date.now()}`);
-        const text = await res.text();
-        let json;
-        try { json = JSON.parse(text); } catch (e) {
-          console.error("Réponse non JSON (GET):", text); return;
-        }
-
+        const json = await res.json();
         if (json.status === "ok" && json.data) {
           const c = json.data;
-          if (c.id !== lastId) {
-            lastId = c.id;
-            currentClient = c;
-            document.getElementById("no-client").style.display = "none";
-            document.getElementById("client-info").style.display = "block";
-            document.getElementById("ding").play();
-
-            // préremplit
-            const mapping = {
-              nom: c.nom, prenom: c.prenom, adresse: c.adresse,
-              codePostal: c.codePostal, telephone: c.telephone, email: c.email,
-              imei: c.imei, numeroCI: c.numeroCI, marqueModele: c.marqueModele,
-              prixAchat: c.prixAchat, dateCession: c.dateCession
-            };
-            Object.entries(mapping).forEach(([k,v]) => {
-              const el = document.getElementById(k); if (el) el.value = v || "";
-            });
-
-            if (!pad) pad = new SignaturePad(document.getElementById("signature-pad"));
-            document.getElementById("status").textContent = "";
-          }
-        } else if (json.status === "empty") {
-          document.getElementById("no-client").style.display = "block";
-          document.getElementById("client-info").style.display = "none";
-          currentClient = null;
+          currentId = c.id;
+          $('no-client').style.display = 'none';
+          $('client-info').style.display = 'block';
+          $('ding').play();
+          fillForm(c);
+          if (!pad) pad = new SignaturePad($('signature-pad'));
+          $('status').textContent = '';
+        } else {
+          $('no-client').style.display = 'block';
+          $('client-info').style.display = 'none';
         }
-      } catch (err) {
-        console.error("Erreur checkClient:", err);
-      }
+      } catch (e) { console.error(e); }
     }
 
     function clearPad() { if (pad) pad.clear(); }
 
-    function resetFormToWaiting() {
-      document.getElementById("form").reset();
-      if (pad) pad.clear();
-      currentClient = null;
-      lastId = null;
-      document.getElementById("client-info").style.display = "none";
-      document.getElementById("no-client").style.display = "block";
+    // --- Enregistrer sans PDF
+// --- Enregistrer sans PDF
+async function saveOnly() {
+  if (!currentId) { alert('Aucun client chargé'); return; }
+
+  const statusEl = $('status');              // ← prends l'élément, pas son textContent
+  statusEl.textContent = 'Enregistrement...';
+  statusEl.style.color = 'black';
+
+  const formData = {};
+  new FormData(document.getElementById('form')).forEach((v,k)=> formData[k]=v);
+  formData.id = currentId;
+  formData.mode = 'save';                     // ← sauvegarde sans PDF côté Apps Script
+
+  // on s’assure de ne PAS envoyer de signature en mode save
+  delete formData.signature;
+
+  try {
+    const resp = await fetch(SCRIPT_URL, {    // ← utilise ta constante, pas "proxy.php" en dur
+      method: 'POST',
+      headers: { 'Content-Type':'application/json' },
+      body: JSON.stringify(formData)
+    });
+
+    // on sécurise le parsing JSON (au cas où)
+    const text = await resp.text();
+    let out;
+    try { out = JSON.parse(text); }
+    catch {
+      statusEl.style.color = 'red';
+      statusEl.textContent = 'Réponse non JSON du serveur (save).';
+      console.error('RAW:', text);
+      return;
     }
 
+    if (out.status === 'success') {
+      statusEl.style.color = 'green';
+      statusEl.textContent = out.message || 'Données enregistrées (sans PDF) ✅';
+    } else {
+      statusEl.style.color = 'red';
+      statusEl.textContent = out.message || 'Erreur côté serveur';
+    }
+  } catch (err) {
+    statusEl.style.color = 'red';
+    statusEl.textContent = 'Erreur réseau : ' + err.message;
+  }
+}
+
+    // --- Signer + PDF
     async function submitPad() {
-      if (!pad || pad.isEmpty()) { alert("Veuillez signer avant de valider !"); return; }
-      if (!currentClient) { alert("Aucun client chargé !"); return; }
+      if (!pad || pad.isEmpty()) { alert('Veuillez signer avant de valider !'); return; }
+      if (!currentId) { alert('Aucun client chargé !'); return; }
 
       const formData = {};
-      new FormData(document.getElementById("form")).forEach((v, k) => formData[k] = v);
-      formData.id = currentClient.id;
+      new FormData($('form')).forEach((v,k)=> formData[k]=v);
+      formData.id = currentId;
       formData.signature = pad.toDataURL();
 
-      const status = document.getElementById("status");
-      status.textContent = "Envoi en cours..."; status.style.color = "black";
+      $('status').textContent = 'Création du PDF...';
+      $('status').style.color = 'black';
 
       try {
-        const res = await fetch(SCRIPT_URL, {
+        const response = await fetch(SCRIPT_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData)
         });
-        const text = await res.text();
-        let result;
-        try { result = JSON.parse(text); } catch (e) {
-          status.style.color = "red";
-          status.textContent = "Erreur serveur (non-JSON). Voir console.";
-          console.error("Réponse non JSON (POST):", text);
-          return;
-        }
-
+        const result = await response.json();
         if (result.status === "success") {
-          status.style.color = "green";
-          status.innerHTML = `✅ ${result.message}<br><a href="${result.url}" target="_blank" rel="noopener">Voir le PDF</a>`;
-          resetFormToWaiting(); // revient en attente immédiatement
+          $('status').style.color = "green";
+          $('status').innerHTML = `✅ ${result.message}<br><a href="${result.url}" target="_blank">Voir le PDF</a>`;
+          pad.clear();
+          // on peut vider le formulaire si besoin :
+          // $('form').reset();
         } else {
-          status.style.color = "red";
-          status.textContent = "Erreur : " + (result.message || "inconnue");
+          $('status').style.color = "red";
+          $('status').textContent = "Erreur : " + result.message;
         }
       } catch (err) {
-        status.style.color = "red";
-        status.textContent = "Erreur d'envoi : " + err.message;
+        $('status').style.color = "red";
+        $('status').textContent = "Erreur d'envoi : " + err.message;
       }
     }
 
-    setInterval(checkClient, 3000);
-    checkClient();
+    // --- bootstrap : si ?id=... on charge direct, sinon polling
+    (function init(){
+      const params = new URLSearchParams(location.search);
+      const id = params.get('id');
+      if (id) {
+        loadById(id);
+      } else {
+        setInterval(checkClient, 3000);
+        checkClient();
+      }
+    })();
   </script>
 </body>
 </html>

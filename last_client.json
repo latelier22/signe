@@ -1,0 +1,15 @@
+{
+    "id": "id",
+    "imei": "IMEI\/SERIE",
+    "numeroCI": "Numéro CI",
+    "prixAchat": "Prix achat",
+    "nom": "NOM ",
+    "prenom": "Prénom",
+    "telephone": "Téléphone",
+    "marqueModele": "Marque\/Modèle",
+    "attestation": "Attestation. ",
+    "dateCession": "Date de cession",
+    "adresse": "Adresse",
+    "codePostal": "Code postal",
+    "email": "email"
+}
